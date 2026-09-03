@@ -2,6 +2,7 @@ package doggytalents;
 
 import doggytalents.api.feature.FoodHandler;
 import doggytalents.client.ClientSetup;
+import doggytalents.client.DTNTintSources;
 import doggytalents.client.DTNClientDogSleepOnManager;
 import doggytalents.client.DoggyKeybinds;
 import doggytalents.client.DTNClientPettingManager;
@@ -32,6 +33,7 @@ import doggytalents.common.item.itemgroup.DTNItemCategory;
 import doggytalents.common.lib.Constants;
 import doggytalents.common.network.DTNNetworkHandler;
 import doggytalents.common.network.PacketHandler;
+import doggytalents.gametest.DTNGameTestRegistry;
 import doggytalents.common.talent.HappyEaterTalent;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.fml.ModLoadingContext;
@@ -81,6 +83,7 @@ public class DoggyTalentsNext {
         DoggyEffects.EFFECTS.register(modEventBus);
         DoggyAdvancementTriggers.TRIGGERS.register(modEventBus);
         DoggyEntitySubPredicates.ENTITY_SUB_PREDICATES.register(modEventBus);
+        DTNGameTestRegistry.register(modEventBus);
 
         DTLootModifierProvider.CODEC.register(modEventBus);
 
@@ -103,8 +106,8 @@ public class DoggyTalentsNext {
         if (FMLEnvironment.getDist() == Dist.CLIENT) {
             modEventBus.addListener(DoggyKeybinds::registerDTKeyMapping);
             modEventBus.addListener(this::clientSetup);
-            // modEventBus.addListener(DoggyBlocks::registerBlockColours); // needs migration to ItemTintSource
-            // modEventBus.addListener(DoggyItems::registerItemColours); // needs migration to ItemTintSource
+            modEventBus.addListener(DTNTintSources::registerBlockTintSources);
+            modEventBus.addListener(DTNTintSources::registerItemTintSources);
             modEventBus.addListener(ClientEventHandler::registerModelForBaking);
             modEventBus.addListener(ClientEventHandler::modifyBakedModels);
             modEventBus.addListener(ClientSetup::setupTileEntityRenderers);
