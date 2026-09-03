@@ -14,9 +14,12 @@ import doggytalents.client.entity.render.DoggyArmorMapping;
 import doggytalents.client.entity.render.DogRenderState;
 import doggytalents.client.entity.render.layer.DogArmorHelmetAltModel;
 import doggytalents.common.config.ConfigHandler;
+import doggytalents.common.entity.Dog;
+import doggytalents.common.util.ItemUtil;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.model.Model;
 import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.Sheets;
 import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.rendertype.RenderType;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
@@ -24,11 +27,19 @@ import net.minecraft.client.renderer.entity.EntityRendererProvider;
 import net.minecraft.client.renderer.entity.RenderLayerParent;
 import net.minecraft.client.renderer.entity.layers.RenderLayer;
 import net.minecraft.client.renderer.texture.OverlayTexture;
+import net.minecraft.client.renderer.texture.TextureAtlas;
+import net.minecraft.client.resources.model.EquipmentAssetManager;
+import net.minecraft.client.resources.model.EquipmentClientInfo;
 import net.minecraft.core.component.DataComponents;
+import net.minecraft.data.AtlasIds;
 import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.util.ARGB;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.equipment.EquipmentAsset;
+import net.minecraft.world.item.equipment.trim.ArmorTrim;
+import net.neoforged.neoforge.client.extensions.common.IClientItemExtensions;
 
 public class DoggyArmorRenderer extends RenderLayer<DogRenderState, DogModel> {
 
@@ -39,6 +50,8 @@ public class DoggyArmorRenderer extends RenderLayer<DogRenderState, DogModel> {
     private boolean initAltModel = false;
 
     private DogArmorHelmetAltModel helmetAltModel;
+    private final TextureAtlas dogArmorTrimAtlas;
+    private final EquipmentAssetManager equipmentAssets;
 
     public DoggyArmorRenderer(RenderLayerParent<DogRenderState, DogModel> parentRenderer, EntityRendererProvider.Context ctx) {
         super(parentRenderer);
@@ -49,6 +62,8 @@ public class DoggyArmorRenderer extends RenderLayer<DogRenderState, DogModel> {
         this.model = newModel;
 
         this.helmetAltModel = new DogArmorHelmetAltModel(ctx);
+        this.dogArmorTrimAtlas = ctx.getAtlas(AtlasIds.ARMOR_TRIMS);
+        this.equipmentAssets = ctx.getEquipmentAssets();
     }
 
     @Override
@@ -127,7 +142,11 @@ public class DoggyArmorRenderer extends RenderLayer<DogRenderState, DogModel> {
             return;
         }
 
-        renderArmorCutout(this.model, DoggyArmorMapping.getMappedResource(itemStack.getItem(), dog, itemStack), stack, buffer, light);
+        renderArmorCutout(this.model, DoggyArmorMapping.getMappedResource(dog, itemStack, equipmentAssets), stack, buffer, light);
+
+        var trim = ItemUtil.getTrim(itemStack);
+        if (trim.isPresent() && equippable.assetId().isPresent())
+            renderTrim(stack, buffer, light, trim.get(), this.model, equippable.assetId().get());
 
         if (itemStack.hasFoil())
             renderGlint(stack, buffer, light, this.model);
@@ -136,9 +155,13 @@ public class DoggyArmorRenderer extends RenderLayer<DogRenderState, DogModel> {
     private Optional<Model> getAlternativeArmorModel(doggytalents.common.entity.Dog dog, EquipmentSlot slot, PoseStack stack, ItemStack itemStack) {
         if (slot == EquipmentSlot.HEAD && ConfigHandler.CLIENT.USE_THIRD_PARTY_PLAYER_HELMET_MODEL.get()) {
             var dummy = this.helmetAltModel.getDummy();
-            if (dummy != null) {
-                // ClientHooks.getArmorModel no longer exists in 26.1.2; skip third-party model lookup
-            }
+            var customHeadModel = IClientItemExtensions.of(itemStack).getGenericArmorModel(
+                itemStack,
+                EquipmentClientInfo.LayerType.HUMANOID,
+                dummy
+            );
+            if (customHeadModel != dummy && customHeadModel != null)
+                return Optional.of(customHeadModel);
         }
         if (slot == EquipmentSlot.HEAD && ConfigHandler.CLIENT.USE_PLAYER_HELMET_MODEL_BY_DEFAULT.get()) {
             var m = this.helmetAltModel.getModel();
@@ -152,7 +175,12 @@ public class DoggyArmorRenderer extends RenderLayer<DogRenderState, DogModel> {
             stack1.pushPose();
             stack1.scale(0.6f, 0.6f, 0.6f);
             stack1.translate(0, 0.15f, 0.07);
-            renderAlternativeModel(model, stack1, buffer, light, itemStack);
+            renderAlternativeModel(model, dog, stack1, buffer, light, itemStack);
+
+            var trim = ItemUtil.getTrim(itemStack);
+            var equippable = itemStack.get(DataComponents.EQUIPPABLE);
+            if (trim.isPresent() && equippable != null && equippable.assetId().isPresent())
+                renderTrim(stack1, buffer, light, trim.get(), model, equippable.assetId().get());
 
             if (itemStack.hasFoil())
                 renderGlint(stack, buffer, light, model);
@@ -161,8 +189,9 @@ public class DoggyArmorRenderer extends RenderLayer<DogRenderState, DogModel> {
         });
     }
 
-    private void renderAlternativeModel(Model model, PoseStack stack, MultiBufferSource buffer, int light, ItemStack itemStack) {
-        var texLoc = DoggyArmorMapping.getMappedResource(itemStack.getItem(), null, itemStack);
+    private void renderAlternativeModel(Model model, Dog dog, PoseStack stack,
+            MultiBufferSource buffer, int light, ItemStack itemStack) {
+        var texLoc = DoggyArmorMapping.getMappedResource(dog, itemStack, equipmentAssets);
         VertexConsumer ivertexbuilder = buffer.getBuffer(RenderTypes.armorCutoutNoCull(texLoc));
         model.renderToBuffer(stack, ivertexbuilder, light, OverlayTexture.NO_OVERLAY, 0xffffffff);
     }
@@ -170,6 +199,18 @@ public class DoggyArmorRenderer extends RenderLayer<DogRenderState, DogModel> {
     private void renderArmorCutout(DogArmorModel model, Identifier textureLocationIn, PoseStack matrixStackIn, MultiBufferSource bufferIn, int packedLightIn) {
         VertexConsumer ivertexbuilder = bufferIn.getBuffer(RenderTypes.armorCutoutNoCull(textureLocationIn));
         model.renderToBuffer(matrixStackIn, ivertexbuilder, packedLightIn, OverlayTexture.NO_OVERLAY, ARGB.colorFromFloat(1, 1.0F, 1.0F, 1.0F));
+    }
+
+    private void renderTrim(PoseStack stack, MultiBufferSource buffer, int light, ArmorTrim trim,
+            Model model, ResourceKey<EquipmentAsset> equipmentAsset) {
+        Identifier spriteId = trimSpriteId(trim, equipmentAsset);
+        var sprite = this.dogArmorTrimAtlas.getSprite(spriteId);
+        var vertexConsumer = sprite.wrap(buffer.getBuffer(Sheets.armorTrimsSheet(trim.pattern().value().decal())));
+        model.renderToBuffer(stack, vertexConsumer, light, OverlayTexture.NO_OVERLAY, 0xffffffff);
+    }
+
+    static Identifier trimSpriteId(ArmorTrim trim, ResourceKey<EquipmentAsset> equipmentAsset) {
+        return trim.layerAssetId(EquipmentClientInfo.LayerType.HUMANOID.trimAssetPrefix(), equipmentAsset);
     }
 
     private void renderGlint(PoseStack stack, MultiBufferSource buffer, int light, Model model) {
