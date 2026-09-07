@@ -22,7 +22,6 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.util.datafix.DataFixTypes;
 import net.minecraft.world.level.saveddata.SavedData;
 import net.minecraft.world.level.saveddata.SavedDataType;
-import net.minecraft.world.level.storage.SavedDataStorage;
 import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 import net.neoforged.neoforge.event.server.ServerStoppingEvent;
 
@@ -49,15 +48,13 @@ public class DogLocationStorage extends SavedData {
 
         ServerLevel overworld = world.getServer().getLevel(Level.OVERWORLD);
 
-        SavedDataStorage storage = overworld.getDataStorage();
-        return storage.computeIfAbsent(TYPE);
+        return LegacyDogSavedData.get(overworld, TYPE, "doggytalentsDogLocations.dat");
     }
 
     public static DogLocationStorage get(MinecraftServer server) {
         ServerLevel overworld = server.getLevel(Level.OVERWORLD);
 
-        SavedDataStorage storage = overworld.getDataStorage();
-        return storage.computeIfAbsent(TYPE);
+        return LegacyDogSavedData.get(overworld, TYPE, "doggytalentsDogLocations.dat");
     }
 
     public Stream<DogLocationData> getDogs(LivingEntity owner) {
@@ -158,14 +155,13 @@ public class DogLocationStorage extends SavedData {
                 uuid = NBTUtil.getUniqueId(locationCompound, "entityId");
             }
 
-            DogLocationData locationData = new DogLocationData(store, uuid);
-            locationData.read(locationCompound);
-
             if (uuid == null) {
-                DoggyTalentsNext.LOGGER.info("Failed to load dog location data. Please report to mod author...");
-                DoggyTalentsNext.LOGGER.info(locationData);
+                DoggyTalentsNext.LOGGER.warn("Skipping dog location data at index {} because it has no valid UUID", i);
                 continue;
             }
+
+            DogLocationData locationData = new DogLocationData(store, uuid);
+            locationData.read(locationCompound);
 
             store.locationDataMap.put(uuid, locationData);
         }

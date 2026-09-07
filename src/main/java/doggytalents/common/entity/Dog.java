@@ -40,6 +40,7 @@ import doggytalents.common.entity.ai.triggerable.DogPlayTagAction;
 import doggytalents.common.entity.ai.triggerable.TriggerableAction;
 import doggytalents.common.entity.ai.triggerable.TriggerableAction.ActionState;
 import doggytalents.common.entity.anim.DogAnimationManager;
+import doggytalents.common.entity.anim.DogClassicalAnimationState;
 import doggytalents.common.entity.anim.DogPose;
 import doggytalents.common.entity.anim.DogWalkAnimationState;
 import doggytalents.common.entity.anim.DogAnimationManager.DogAnimDebugState;
@@ -447,14 +448,13 @@ public class Dog extends AbstractDog {
         return dogMood.getDeathSound();
     }
 
-    protected @Nullable SoundEvent getHowlSound() {
-        return null;
+    protected SoundEvent getHowlSound() {
+        return LangUtil.getRandomItem(this.getRandom(),
+            List.of(DogSounds.CLASSIC_HOWL1, DogSounds.CLASSIC_HOWL2)).orElseThrow().get();
     }
 
     public void howl() {
-        var howlSound = this.getHowlSound();
-        if (howlSound == null) return;
-        this.playSound(howlSound, 1, this.getVoicePitch());
+        this.playSound(this.getHowlSound(), 1, this.getVoicePitch());
     }
 
     public boolean isDogSoaked() {
@@ -465,21 +465,30 @@ public class Dog extends AbstractDog {
         return Math.min(0.5F + Mth.lerp(partialTicks, this.prevTimeWolfIsShaking, this.timeWolfIsShaking) / 2.0F * 0.5F, 1.0F);
     }
 
-    @Override
-    public float getShakeAngle(float partialTicks, float offset) {
-        float f = (Mth.lerp(partialTicks, this.prevTimeWolfIsShaking, this.timeWolfIsShaking) + offset) / 1.8F;
-        if (f < 0.0F) {
-            f = 0.0F;
-        } else if (f > 1.0F) {
-            f = 1.0F;
-        }
-
-        return Mth.sin(f * (float)Math.PI) * Mth.sin(f * (float)Math.PI * 11.0F) * 0.15F * (float)Math.PI;
+    public float getDogClassicalShakeAnim(float pticks) {
+        return Mth.lerp(pticks, this.prevTimeWolfIsShaking, this.timeWolfIsShaking);
     }
 
+    public float getDogClassicalBegAnim(float pticks) {
+        return Mth.lerp(pticks, this.headRotationCourseOld, this.headRotationCourse);
+    }
+
+    @Deprecated
+    @Override
+    public float getWagAngle(float limbSwing, float limbSwingAmount, float partialTickTime) {
+        return DogClassicalAnimationState.wagAngle(limbSwing, limbSwingAmount, partialTickTime);
+    }
+
+    @Deprecated
+    @Override
+    public float getShakeAngle(float partialTicks, float offset) {
+        return DogClassicalAnimationState.shakeAngle(getDogClassicalShakeAnim(partialTicks), offset);
+    }
+
+    @Deprecated
     @Override
     public float getInterestedAngle(float partialTicks) {
-        return Mth.lerp(partialTicks, this.headRotationCourseOld, this.headRotationCourse) * 0.15F * (float)Math.PI;
+        return DogClassicalAnimationState.begAngle(getDogClassicalBegAnim(partialTicks));
     }
 
     @Override
@@ -525,11 +534,6 @@ public class Dog extends AbstractDog {
         lost_rad = Mth.clamp(lost_rad, 0, Mth.HALF_PI);
         
         return full_health_angle - lost_rad;
-    }
-
-    @Override
-    public float getWagAngle(float limbSwing, float limbSwingAmount, float partialTickTime) {
-        return Mth.cos(limbSwing * 0.6662F) * 1.4F * limbSwingAmount;
     }
 
     // @Override
@@ -662,9 +666,11 @@ public class Dog extends AbstractDog {
                 }
             }
         }
-        
+
+        this.animationManager.tick();
+
         if (this.isAlive()) {
-            this.animationManager.tick();
+
             if (!this.level().isClientSide())
                 this.tickAnimAction();
         }
@@ -2944,10 +2950,12 @@ public class Dog extends AbstractDog {
         this.authorizedChangingOwner = true;
         this.authorizedChangingName = true;
 
-        super.load(input);
-
-        this.authorizedChangingOwner = false;
-        this.authorizedChangingName = false;
+        try (var reporter = new net.minecraft.util.ProblemReporter.ScopedCollector(com.mojang.logging.LogUtils.getLogger())) {
+            super.load(LegacyDogAttributes.upgrade(input, this.registryAccess(), reporter));
+        } finally {
+            this.authorizedChangingOwner = false;
+            this.authorizedChangingName = false;
+        }
     }
 
     @Override
@@ -3033,7 +3041,9 @@ public class Dog extends AbstractDog {
                 this.setMode(DogMode.bySaveName(compound.getStringOr("mode", "")));
             }
             
-            this.setHungerDirectly(compound.getFloatOr("dogHunger", 0f));
+            if (compound.contains("dogHunger")) {
+                this.setHungerDirectly(compound.getFloatOr("dogHunger", 0f));
+            }
             this.setDogIncapValue(compound.getIntOr("dogIncapacitatedValue", 0));
             this.setOwnersName(NBTUtil.getTextComponent(compound, "lastKnownOwnerName"));
             this.setWillObeyOthers(compound.getBooleanOr("willObey", false));
@@ -5246,7 +5256,11 @@ public class Dog extends AbstractDog {
     }
 
     public void setAnim(DogAnimation animation) {
+        var anim0 = DogAnimation.byId(this.entityData.get(ANIMATION));
         this.entityData.set(ANIMATION, animation.getId());
+        if (anim0 != animation) {
+            this.entityData.set(ANIM_SYNC_TIME, -1);
+        }
     }
 
     @Override

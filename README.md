@@ -26,7 +26,6 @@ Not only that, we also offer you tons of ways to make your dog truly one-of-a-ki
 
 
 A Big Thanks to everyone that has contributed. This includes but is not limited to...
- * 💚**zNexwr** for Translation in "FR"
  * 💚**Arkathus** for Translation in "ES"
  * 💚**克洛伊** for Translation in "ZH_TW"
  * 💚**shenyx110**, **cmd-png** for Translation in "ZH_CN"
@@ -44,16 +43,18 @@ For more informations, please consult the [wiki](https://doggytalentsnext.wiki.g
 
 -----------------
 
-### NeoForge 26.1.2 Migration Status (branch: `1.21-master`)
+### NeoForge 26.1.2 Migration Status (branch: `26.1.2`)
 
 | Area | Status |
 |------|--------|
-| Build system (Gradle 9.1, ModDevGradle 2.0.141, NeoForge 26.1.2.11-beta) | ✅ Done |
-| GUI / client rendering (render state pattern, blit API, screen widgets) | ✅ Done |
+| Build system (Gradle 9.1, ModDevGradle 2.0.141, NeoForge 26.1.2.101) | ✅ Done |
+| GUI / client rendering (render state pattern, blit API, screen widgets) | Implemented; animation review passed, full visual matrix remains |
 | Runtime startup errors | ✅ Fixed |
-| `@OnlyIn` annotation cleanup | ⚠️ Warnings remain (non-blocking) |
-| Networking (PacketHandler/DTNNetworkHandler wrapper removal) | Pending |
-| Data Components (replace NBT in item data) | Pending |
+| `@OnlyIn` annotation cleanup | ✅ Removed obsolete annotations |
+| Networking (NeoForge payload adapter) | ✅ Direction/codec tested; compatibility wrappers retained |
+| Data Components (replace NBT in item data) | ✅ Migrated for item custom data with legacy compatibility tests |
+
+See [the current port review](docs/PORT_REVIEW_26.1.2.md) for evidence limits and remaining acceptance work.
 
 -----------------
 
