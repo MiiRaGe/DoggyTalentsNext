@@ -15,6 +15,7 @@ import net.minecraft.core.component.DataComponents;
 import net.minecraft.client.resources.model.EquipmentAssetManager;
 import net.minecraft.client.resources.model.EquipmentClientInfo;
 import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.EquipmentSlot;
@@ -23,12 +24,14 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.item.equipment.EquipmentAsset;
 import net.minecraft.world.item.equipment.Equippable;
 import net.minecraft.world.level.Level;
 import net.neoforged.neoforge.client.extensions.common.IClientItemExtensions;
 
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class DoggyArmorMapping {
 
@@ -89,11 +92,26 @@ public class DoggyArmorMapping {
         return equipmentInfo.getLayers(EquipmentClientInfo.LayerType.HUMANOID).stream().findFirst();
     }
 
+    // Resolving a texture walks the resource packs, so cache it instead of doing that
+    // for every armour piece on every dog each frame. Keyed by item AND equipment asset,
+    // since the asset comes from the stack's components and can differ per stack.
+    private record CacheKey(Item item, Optional<ResourceKey<EquipmentAsset>> assetId) {}
+
+    private static final Map<CacheKey, Identifier> MAPPING = new ConcurrentHashMap<>();
+
+    /** Drop cached textures; call on resource reload, as packs may add or remove them. */
+    public static void clearCache() {
+        MAPPING.clear();
+    }
+
     public static Identifier getMappedResource(Dog dog, ItemStack stack, EquipmentAssetManager equipmentAssets) {
         if (ConfigHandler.CLIENT.USE_LEGACY_DOG_ARMOR_RENDER.get())
             return getLegacyMappedResource(dog, stack.getItem());
 
-        return computeArmorTexture(stack, equipmentAssets);
+        var equippable = stack.getOrDefault(DataComponents.EQUIPPABLE, null);
+        var key = new CacheKey(stack.getItem(),
+            equippable == null ? Optional.<ResourceKey<EquipmentAsset>>empty() : equippable.assetId());
+        return MAPPING.computeIfAbsent(key, k -> computeArmorTexture(stack, equipmentAssets));
     }
 
     public static Identifier getLegacyMappedResource(Dog dog, Item item) {

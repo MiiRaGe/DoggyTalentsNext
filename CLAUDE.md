@@ -1,8 +1,8 @@
 # DoggyTalentsNext Migration Plan: Minecraft 1.21 → 26.1.2
 
-**Status**: Mod Loading — Runtime Warnings Remaining
-**Date**: 2026-04-25
-**Target**: NeoForge 26.1.2.x for Minecraft 26.1
+**Status**: Community port (PR #15) merged — not yet built or play-tested
+**Date**: 2026-04-25 (status updated 2026-11-07)
+**Target**: NeoForge 26.1.2.101+ for Minecraft 26.1.2
 
 ## Executive Summary
 
@@ -13,8 +13,11 @@ This document outlines the complete migration strategy for DoggyTalentsNext from
 ✅ **Phase 1 - Build System** (COMPLETED)
 - ✅ Gradle upgraded to 9.1.0
 - ✅ ModDevGradle 2.0.141 configured
-- ✅ NeoForge version updated to 26.1.2.11-beta
-- ✅ Java 25
+- ✅ NeoForge 26.1.2.101 — `build.gradle` reads `neoforge_version` from `gradle.properties` (it was previously hardcoded to 26.1.2.70-beta)
+- ✅ `neoforge.mods.toml` ranges: Minecraft `[26.1.2]`, NeoForge `[26.1.2.101,26.1.3)` — players on older NeoForge or MC 26.1/26.1.1 cannot load the mod
+- ✅ Java 25 — `org.gradle.java.home` was removed, so `JAVA_HOME` (or `JDK_25_HOME`) must point at JDK 25
+- ✅ Gradle daemon heap raised to `-Xmx8G`
+- ⚠️ Always use `./gradlew`; the system `gradle` (8.4) cannot read Java 25 class files
 - ✅ pack_format updated to 84 with min/max fields
 - ✅ Block/item registration migrated to `DeferredRegister.createBlocks/createItems()`
 
@@ -28,11 +31,36 @@ This document outlines the complete migration strategy for DoggyTalentsNext from
 - ✅ Blit calls: old 7-arg → new 10-arg with `RenderPipelines.GUI_TEXTURED`
 - ✅ `DogMouthItemRenderer`: `ItemInHandRenderer` → `ItemModelResolver/ItemStackRenderState`
 - ✅ `FoodBowlScreen`: `imageHeight` final, `extractContents/extractLabels` signatures fixed
+- ✅ `DoggyArmorMapping` caches armor textures per (item, equipment asset); cache cleared on resource reload from `DTNModelLoader.apply`
+
+✅ **Phase 2 - Inventory** (MIGRATED via PR #15)
+- ✅ `DTNItemStackHandler` (api) extends NeoForge `ItemStacksResourceHandler`; all five handlers now build on it (`DogArmorItemHandler` and its `DogArmorItemHandlerImpl`, `PackPuppyItemHandler`, `TreatBagItemHandler`, `DoggyToolsItemHandler`)
+- ✅ Menus use `ResourceHandlerSlot` instead of `SlotItemHandler`
+- Legacy stack-style methods (`getStackInSlot`, `setStackInSlot`, `insertItem`, `extractItem`) are kept as wrappers over transactions. Note `setStackInSlot` stores a **copy** (old `ItemStackHandler` stored the reference); Doggy Tools held-item logic relies on reference identity — reviewed, no dupe found, but watch for held-item flicker
+- Save format unchanged (`Items`/`Size`)
+
+⚠️ **Phase 4 - Networking** (PARTIAL)
+- `PacketHandler`/`DTNNetworkHandler` compatibility wrapper still in place
+- ✅ Every packet registered as `registerServerbound`/`registerClientbound`; wrong-direction packets disconnect the sender (`PayloadDirection`). Packet IDs/order unchanged
+- ✅ `DogPacket.handle` ignores anything not received on the server
+- ✅ `NetworkDecodeUtil` caps decoded collection sizes and name lengths
+- ✅ Canine Tracker `StartLocating` now checks owner, dimension and visibility (previously any player could locate any dog by UUID)
 
 ✅ **Phase 6 - Attribute Modifiers** (ALREADY COMPLIANT — no changes needed)
+- `LegacyDogAttributes` renames old `minecraft:generic.*` attribute IDs on load
 
-⚠️ **Remaining Runtime Warnings** (see Known Issues below)
-- `@OnlyIn` annotation member-stripping no longer active in NeoForge 26.1.2
+✅ **Phase 7 - Codecs** (DONE) — only non-deprecated `ExtraCodecs` constants remain (`RGB_COLOR_CODEC`, `VECTOR3F`)
+
+✅ **`@OnlyIn` cleanup** — no `@OnlyIn` annotations remain in `src/`
+
+✅ **Gameplay fixes (26.1.2.25)** — dogs follow owner across dimensions (chunk ticket flags fixed), Creeper Sweeper level 5 hunts creepers in Aggressive mode. Not yet verified in game
+
+⚠️ **Phase 5 - Data Components** (NOT DONE) — item data still uses `DataComponents.CUSTOM_DATA`; no `DataComponentType` registered
+
+⚠️ **Phase 8 - Testing** (WRITTEN, NOT YET RUN BY OWNER)
+- 59 JUnit tests in `src/test` — `./gradlew build` now runs them (`neoForge.unitTest` enabled); a failing test fails the build
+- 76 GameTests in `src/main/java/doggytalents/gametest` — run with `./gradlew runGameTestServer`
+- CI: `.github/workflows/build.yml` runs build + GameTests on push/PR (read-only permissions)
 
 ---
 
@@ -40,7 +68,7 @@ This document outlines the complete migration strategy for DoggyTalentsNext from
 
 ---
 
-## Phase 2: Inventory System Migration (LOWER PRIORITY — ItemStackHandler still works)
+## Phase 2: Inventory System Migration (DONE — see Current Migration Status; plan kept for reference)
 
 ### 2.1 Replace ItemStackHandler with ResourceHandler
 
@@ -671,11 +699,11 @@ Create tests for:
 ## Critical Files Checklist
 
 ### Inventory System (5 files)
-- [ ] `DogArmorItemHandler.java` (API)
-- [ ] `DogArmorItemHandlerImpl.java`
-- [ ] `PackPuppyItemHandler.java`
-- [ ] `TreatBagItemHandler.java`
-- [ ] `DoggyToolsItemHandler.java`
+- [x] `DogArmorItemHandler.java` (API)
+- [x] `DogArmorItemHandlerImpl.java`
+- [x] `PackPuppyItemHandler.java`
+- [x] `TreatBagItemHandler.java`
+- [x] `DoggyToolsItemHandler.java`
 
 ### Screen/GUI (28 files)
 - [x] All screens migrated (commit c848bd73)
@@ -696,23 +724,26 @@ Create tests for:
 
 ## Known Issues & Blockers
 
-### 1. @OnlyIn Annotation Warnings (ACTIVE)
+### 1. Not yet built or play-tested (ACTIVE)
 
-NeoForge 26.1.2 no longer strips members annotated with `@OnlyIn` at runtime. The following usages log ERROR-level warnings on startup:
+PR #15 (from an outside contributor, `dominicbytes`) was merged after a read-only security review that found no malware or exploits. Nothing has been compiled or run since. First steps: `./gradlew build`, `./gradlew runGameTestServer`, then play-test in `./gradlew runClient`.
 
-- `doggytalents.DoggyTalentsNext#clientSetup` (method)
-- `doggytalents.client.block.model.DogBedModel` (class)
-- `doggytalents.client.block.model.DogBedItemOverride` (class)
-- `doggytalents.client.entity.model.animation.DogKeyframeAnimations` (class)
-- `doggytalents.common.block.DogBedBlock#addBedTooltip` (method)
-- `doggytalents.common.entity.Dog#getInterestedAngle` (method)
-- `doggytalents.common.entity.Dog#getShakeAngle` (method)
-- `doggytalents.common.entity.Dog#getShadingWhileWet` (method)
-- `doggytalents.common.item.TreatBagItem#appendHoverText` (method)
+### 2. Behaviour and compatibility changes from PR #15
 
-**Fix**: Remove `@OnlyIn(Dist.CLIENT)` from each location. Client-only methods on common classes should instead use `DistExecutor` or be moved to a `@EventBusSubscriber(value = Dist.CLIENT)` class. Client-only classes in `doggytalents.client.*` do not need the annotation at all since they are already in a client-only package.
+- **Removed content** (matches upstream DashieDev): dragon costume head/suit/wings, plague doctor mask, sussy sickle — copies in existing worlds disappear. French translation (`fr_fr.json`) removed; `UpstreamCleanupParityTest` asserts it stays absent. Dog models `arcanine`, `borzoi_long`, `otter` removed
+- **Legacy save import**: `LegacyDogSavedData` imports `data/doggytalentsDogLocations.dat` and `data/doggytalentsDeadDogs.dat` once (originals kept). If an old file is unreadable it throws and **the world will not load**, instead of starting with empty dog data
+- **Respawn data format**: owner UUID now an int array, names as JSON components (upstream format). Old worlds load fine; opening a world with this version and then downgrading loses respawn owner/name data
+- **Dog swimming** starts on `isUnderWater` instead of `isInWater`
 
-### 2. API Coverage Gaps
+### 3. Code hygiene (LOW)
+
+- **GameTests ship in the jar**: `DTNGameTestRegistry` lives in `src/main` and is registered unconditionally from `DoggyTalentsNext`. They are inert in production (`GameTestHooks.isGametestEnabled()` is false, so `RegisterGameTestsEvent` never fires), but should move to a separate source set
+- **Hand-edited generated files**: 25 `src/generated/.../items/*.json` have hand-added `tints`; `DTItemModelProvider` is a stub, so a future real datagen run would overwrite them
+- `DogAnimDebugScreen` shows the wrong label for the rotation-lock mode (cosmetic)
+- A deeply nested dog model in a server-forced resource pack can crash the client on reload (`Codec.recursive` → `StackOverflowError`; pre-existing)
+- `scripts/` holds the contributor's manual QA tooling (Node `.cjs` scripts, `world-upgrade.init.gradle`) and `build.gradle` reads `MINECRAFT_MCP_*` env vars for their tooling. Not needed for normal development
+
+### 4. API Coverage Gaps
 
 The following NeoForge 26.1.2 APIs are mentioned in the migration plan but not yet confirmed:
 - `MutableQuad` usage for BakedQuad manipulation
@@ -728,22 +759,22 @@ The following NeoForge 26.1.2 APIs are mentioned in the migration plan but not y
 | Phase | Complexity | Status |
 |-------|------------|--------|
 | Phase 1: Build System | Low | ✅ DONE |
-| Phase 2: Inventory | High | Working (ItemStackHandler still valid) |
+| Phase 2: Inventory | High | ✅ DONE (PR #15) — untested in game |
 | Phase 3: GUI Rendering | Medium-High | ✅ DONE |
-| Phase 4: Networking | High | Compatibility wrapper in place — cleanup pending |
-| Phase 5: Data Components | Medium | Pending |
+| Phase 4: Networking | High | Wrapper retained; direction checks + size caps added — record conversion pending |
+| Phase 5: Data Components | Medium | Pending (still `CUSTOM_DATA`) |
 | Phase 6: Attribute Modifiers | None | ✅ DONE |
-| Phase 7: Codec Updates | Low | Pending |
-| Phase 8: Testing | Ongoing | Pending |
+| Phase 7: Codec Updates | Low | ✅ DONE |
+| Phase 8: Testing | Ongoing | 59 unit tests + 76 GameTests written — not yet run |
 
 ---
 
 ## Next Steps
 
-1. **Remove `@OnlyIn` annotations** — highest-priority cleanup; causes ERROR log spam on every startup.
+1. **Build and test the merged PR #15** — `./gradlew build`, `./gradlew runGameTestServer`, then play-test dimension travel, Creeper Sweeper, dog inventories/armor, and loading an existing world.
 2. **Phase 4 Networking** — remove `PacketHandler`/`DTNNetworkHandler` wrappers; convert packets to `CustomPacketPayload` records.
-3. **Phase 5 Data Components** — replace NBT usage in whistle, accessory, and artifact items.
-4. **Phase 7 Codec Updates** — replace any remaining `ExtraCodecs` calls.
+3. **Phase 5 Data Components** — replace `CUSTOM_DATA` usage in whistle, accessory, and artifact items with typed components.
+4. **Move GameTests out of `src/main`** into a dedicated source set.
 
 
 ---
@@ -757,6 +788,6 @@ The following NeoForge 26.1.2 APIs are mentioned in the migration plan but not y
 
 ---
 
-**Document Version**: 1.2
-**Last Updated**: 2026-04-25
-**Status**: Mod loading on NeoForge 26.1.2.11-beta; @OnlyIn warnings pending cleanup
+**Document Version**: 1.3
+**Last Updated**: 2026-11-07
+**Status**: PR #15 merged on NeoForge 26.1.2.101; not yet built or play-tested

@@ -15,6 +15,7 @@ import com.mojang.serialization.JsonOps;
 
 import doggytalents.client.entity.model.DogModelRegistry;
 import doggytalents.client.entity.model.util.DTNModelCodec;
+import doggytalents.client.entity.render.DoggyArmorMapping;
 import doggytalents.common.lib.Constants;
 import doggytalents.common.util.Util;
 import net.minecraft.resources.FileToIdConverter;
@@ -56,6 +57,7 @@ public class DTNModelLoader extends SimplePreparableReloadListener<Map<Identifie
     @Override
     protected void apply(Map<Identifier, JsonElement> contents, ResourceManager resourceManager, ProfilerFiller profiler) {
         DogModelRegistry.invalidateAllParsed();
+        DoggyArmorMapping.clearCache();
 
         int load_count = 0;
         for (var entry : contents.entrySet()) {
