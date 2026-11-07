@@ -449,12 +449,14 @@ public class EventHandler {
         var crossOriginTpList = fromLevel
             .getEntitiesOfClass(
                 Dog.class, 
-                owner.getBoundingBox().inflate(COLLECT_RADIUS, 4, COLLECT_RADIUS),
+                owner.getBoundingBox().inflate(COLLECT_RADIUS),
                 d -> isDogReadyToTeleport(d, owner)
             );
         if (crossOriginTpList.isEmpty()) return;
 
-        DogPromiseManager.addPromiseWithOwnerAndStartImmediately(
+        // Must not be dropped because the owner has another promise running: this
+        // is the only chance to bring these dogs along.
+        DogPromiseManager.addPromiseAndStartImmediately(
             new DogBatchTeleportToDimensionPromise(
                 crossOriginTpList, 
                 fromLevel, owner.getUUID(), event.getDimension(), d -> isDogReadyToTeleport(d, owner))

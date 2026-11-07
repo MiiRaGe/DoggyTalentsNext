@@ -34,6 +34,9 @@ public class DogBatchTeleportToDimensionPromise extends AbstractPromise {
     private final ServerLevel origin;
     private final Predicate<Dog> dogValidator;
 
+    private static final int TIMEOUT = 200;
+    private static final int CHECK_INTERVAL = 20;
+
     private int tickTillCheck;
     private int timeOut;
 
@@ -49,7 +52,8 @@ public class DogBatchTeleportToDimensionPromise extends AbstractPromise {
     public void start() {
         forceDogChunk();
         this.tickTillCheck = 7;
-        this.timeOut = 50;
+        // Generous as the owner's chunks may have to be generated on first arrival.
+        this.timeOut = TIMEOUT;
     }
 
     @Override
@@ -59,7 +63,7 @@ public class DogBatchTeleportToDimensionPromise extends AbstractPromise {
             return;
         }
         if (--this.tickTillCheck > 0) return;
-        this.tickTillCheck = 20;
+        this.tickTillCheck = CHECK_INTERVAL;
         var mcServer = origin.getServer();
         var targetLevel = mcServer.getLevel(dimeansion);
         if (targetLevel == null) return;
@@ -86,7 +90,11 @@ public class DogBatchTeleportToDimensionPromise extends AbstractPromise {
 
         var safePosList =
             CachedSearchUtil.getAllSafePosUsingPool(targetLevel, tp_dogs, owner_b0, 4, 1);
-        if (safePosList.isEmpty()) return;
+        if (safePosList.isEmpty()) {
+            // Keep looking while there is time, then settle for where the owner stands.
+            if (this.timeOut > CHECK_INTERVAL) return;
+            safePosList = List.of(owner_b0);
+        }
 
         for (var dog : tp_dogs) {
             int index = dog.getRandom().nextInt(safePosList.size());

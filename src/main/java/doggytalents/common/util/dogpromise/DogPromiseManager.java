@@ -81,12 +81,16 @@ public class DogPromiseManager {
                 return false;
             }
         }
+        addPromiseAndStartImmediately(promise, owner);
+        return true;
+    }
+
+    public static void addPromiseAndStartImmediately(AbstractPromise promise, ServerPlayer owner) {
         promise.setOwner(owner);
         addPromise(promise);
         
         promise.start();
         promise.setState(RUNNING);
-        return true;
     }
 
 }
