@@ -110,6 +110,7 @@ public class DogAiManager {
         registerTargetGoal(6, new BerserkerModeGoal(this.dog));
         registerTargetGoal(6, new GuardModeGoal(this.dog));
         registerTargetGoal(6, new PatrolAssistTargetGoal(this.dog));
+        registerTargetGoal(6, new DogCreeperSweeperTargetGoal(this.dog));
         registerTargetGoal(7, new DogNearestToOwnerAttackableTargetGoal<>(this.dog, AbstractSkeleton.class, false));
     }
 

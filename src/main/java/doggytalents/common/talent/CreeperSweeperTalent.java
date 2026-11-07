@@ -45,6 +45,8 @@ public class CreeperSweeperTalent extends TalentInstance {
 
             if (
                 this.canAttackCreeper()
+                // A dog that won't fight (e.g. Docile) still needs to warn its owner.
+                && dog instanceof Dog fightingDog && fightingDog.getMode().shouldAttack()
                 && ConfigHandler.ServerConfig.getConfig(ConfigHandler.SERVER.MAX_CREEPER_SWEEPER_DONT_GROWL)
             ) return;
 
