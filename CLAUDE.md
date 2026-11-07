@@ -1,8 +1,6 @@
 # DoggyTalentsNext Migration Plan: Minecraft 1.21 → 26.1.2
 
-> Historical migration proposal. Its pending checklists and proposed APIs are not the current implementation contract. See [PORT_REVIEW_26.1.2.md](docs/PORT_REVIEW_26.1.2.md) for the reconciled source baseline, accepted adaptations, and remaining work. In particular, retaining the tested network adapter and `DataComponents.CUSTOM_DATA` is intentional; replacing them solely to match this proposal is unnecessary.
-
-**Status**: Mod Loading — `@OnlyIn` Cleanup Complete
+**Status**: Mod Loading — Runtime Warnings Remaining
 **Date**: 2026-04-25
 **Target**: NeoForge 26.1.2.x for Minecraft 26.1
 
@@ -33,8 +31,8 @@ This document outlines the complete migration strategy for DoggyTalentsNext from
 
 ✅ **Phase 6 - Attribute Modifiers** (ALREADY COMPLIANT — no changes needed)
 
-✅ **Runtime Annotation Cleanup** (COMPLETED)
-- Removed obsolete `@OnlyIn` annotations that NeoForge 26.1.2 no longer strips
+⚠️ **Remaining Runtime Warnings** (see Known Issues below)
+- `@OnlyIn` annotation member-stripping no longer active in NeoForge 26.1.2
 
 ---
 
@@ -698,9 +696,9 @@ Create tests for:
 
 ## Known Issues & Blockers
 
-### 1. @OnlyIn Annotation Warnings (RESOLVED)
+### 1. @OnlyIn Annotation Warnings (ACTIVE)
 
-NeoForge 26.1.2 no longer strips members annotated with `@OnlyIn` at runtime. Commit `b43ef26ef` removed the obsolete annotations from these locations:
+NeoForge 26.1.2 no longer strips members annotated with `@OnlyIn` at runtime. The following usages log ERROR-level warnings on startup:
 
 - `doggytalents.DoggyTalentsNext#clientSetup` (method)
 - `doggytalents.client.block.model.DogBedModel` (class)
@@ -712,7 +710,7 @@ NeoForge 26.1.2 no longer strips members annotated with `@OnlyIn` at runtime. Co
 - `doggytalents.common.entity.Dog#getShadingWhileWet` (method)
 - `doggytalents.common.item.TreatBagItem#appendHoverText` (method)
 
-**Resolution**: No `@OnlyIn` annotations remain in `src/`. Client-only setup is gated by the runtime distribution checks already used by the mod.
+**Fix**: Remove `@OnlyIn(Dist.CLIENT)` from each location. Client-only methods on common classes should instead use `DistExecutor` or be moved to a `@EventBusSubscriber(value = Dist.CLIENT)` class. Client-only classes in `doggytalents.client.*` do not need the annotation at all since they are already in a client-only package.
 
 ### 2. API Coverage Gaps
 
@@ -742,9 +740,10 @@ The following NeoForge 26.1.2 APIs are mentioned in the migration plan but not y
 
 ## Next Steps
 
-1. **Phase 4 Networking** — remove `PacketHandler`/`DTNNetworkHandler` wrappers; convert packets to `CustomPacketPayload` records.
-2. **Phase 5 Data Components** — replace NBT usage in whistle, accessory, and artifact items.
-3. **Phase 7 Codec Updates** — replace any remaining `ExtraCodecs` calls.
+1. **Remove `@OnlyIn` annotations** — highest-priority cleanup; causes ERROR log spam on every startup.
+2. **Phase 4 Networking** — remove `PacketHandler`/`DTNNetworkHandler` wrappers; convert packets to `CustomPacketPayload` records.
+3. **Phase 5 Data Components** — replace NBT usage in whistle, accessory, and artifact items.
+4. **Phase 7 Codec Updates** — replace any remaining `ExtraCodecs` calls.
 
 
 ---
@@ -760,4 +759,4 @@ The following NeoForge 26.1.2 APIs are mentioned in the migration plan but not y
 
 **Document Version**: 1.2
 **Last Updated**: 2026-04-25
-**Status**: Mod loading on NeoForge 26.1.2.101; `@OnlyIn` cleanup complete
+**Status**: Mod loading on NeoForge 26.1.2.11-beta; @OnlyIn warnings pending cleanup
