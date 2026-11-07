@@ -4,7 +4,6 @@ import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.food.FoodProperties;
@@ -17,7 +16,8 @@ import net.minecraft.world.item.component.DyedItemColor;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.enchantment.Enchantment;
 import net.minecraft.world.level.block.Block;
-import net.neoforged.neoforge.items.IItemHandler;
+import net.neoforged.neoforge.transfer.ResourceHandler;
+import net.neoforged.neoforge.transfer.item.ItemResource;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -31,11 +31,11 @@ import doggytalents.common.item.IDyeableArmorItem;
 public class ItemUtil {
 
     private static int MAX_OVERVIEW = 3;
-    public static ContentOverview getContentOverview(IItemHandler inventory) {
+    public static ContentOverview getContentOverview(ResourceHandler<ItemResource> inventory) {
         var retMap = new HashMap<Item, Integer>(MAX_OVERVIEW);
         int isMore = 0;
-        for (int i = 0; i < inventory.getSlots(); ++i) {
-            var stack = inventory.getStackInSlot(i);
+        for (int i = 0; i < inventory.size(); ++i) {
+            var stack = net.neoforged.neoforge.transfer.item.ItemUtil.getStack(inventory, i);
             if (stack.isEmpty())
                 continue;
             var item = stack.getItem();
@@ -99,7 +99,7 @@ public class ItemUtil {
 
     public static CompoundTag getTagElement(ItemStack stack, String id) {
         var tag = getTag(stack);
-        if (!tag.contains(id))
+        if (!(tag.get(id) instanceof CompoundTag))
             return null;
         return tag.getCompoundOrEmpty(id);
     }

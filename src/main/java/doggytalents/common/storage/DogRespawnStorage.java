@@ -46,12 +46,12 @@ public class DogRespawnStorage extends SavedData {
             throw new IllegalStateException("DogRespawnStorage is being accessed from the Client Side. Please report to the DTN Team.");
         }
         ServerLevel overworld = world.getServer().getLevel(Level.OVERWORLD);
-        return overworld.getDataStorage().computeIfAbsent(TYPE);
+        return LegacyDogSavedData.get(overworld, TYPE, "doggytalentsDeadDogs.dat");
     }
 
     public static DogRespawnStorage get(MinecraftServer server) {
         ServerLevel overworld = server.getLevel(Level.OVERWORLD);
-        return overworld.getDataStorage().computeIfAbsent(TYPE);
+        return LegacyDogSavedData.get(overworld, TYPE, "doggytalentsDeadDogs.dat");
     }
 
     public Stream<DogRespawnData> getDogs(@Nonnull UUID ownerId) {
@@ -103,14 +103,12 @@ public class DogRespawnStorage extends SavedData {
         for (int i = 0; i < list.size(); ++i) {
             CompoundTag respawnCompound = list.getCompoundOrEmpty(i);
             UUID uuid = NBTUtil.getUniqueId(respawnCompound, "uuid");
-            DogRespawnData respawnData = new DogRespawnData(store, uuid);
-            respawnData.read(respawnCompound);
-
             if (uuid == null) {
-                DoggyTalentsNext.LOGGER.info("Failed to load dog respawn data. Please report to mod author...");
-                DoggyTalentsNext.LOGGER.info(respawnData);
+                DoggyTalentsNext.LOGGER.warn("Skipping dog respawn data at index {} because it has no valid UUID", i);
                 continue;
             }
+            DogRespawnData respawnData = new DogRespawnData(store, uuid);
+            respawnData.read(respawnCompound);
             store.respawnDataMap.put(uuid, respawnData);
         }
         return store;

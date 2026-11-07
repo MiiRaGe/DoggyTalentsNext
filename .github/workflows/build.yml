@@ -1,0 +1,32 @@
+name: Build
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "25"
+          cache: gradle
+      - name: Build and test
+        run: ./gradlew clean build --no-daemon
+      - name: Run NeoForge GameTests
+        run: ./gradlew runGameTestServer --no-daemon
+      - name: Upload test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-evidence
+          path: |
+            build/test-results/test/
+            build/reports/tests/test/
+            run/logs/latest.log
